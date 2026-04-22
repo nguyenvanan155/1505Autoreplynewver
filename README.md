@@ -1,204 +1,106 @@
-# 🤖 Google Maps Review Auto-Reply Bot
+# 🤖 Tool Tự Động Trả Lời Đánh Giá Trên Google Maps
 
-Production-grade automation system that monitors Google Maps business reviews and replies automatically using pre-written templates from Google Sheet.
+Hệ thống tự động hóa cấp doanh nghiệp giúp theo dõi các đánh giá trên Google Maps và tự động trả lời sử dụng các mẫu câu có sẵn từ Google Sheet.
 
-## ✨ Features
+## ✨ Tính Năng
 
-- **Persistent Sessions** — Login once, reuse session forever
-- **Google Sheet Templates** — Random reply from pre-written templates (column A)
-- **Multi-Location** — Monitor multiple business locations
-- **Human-Like Behavior** — Random delays, typing simulation, mouse movements
-- **Anti-Detection** — Session breaks, randomized patterns, CAPTCHA detection
-- **Duplicate Prevention** — MD5-based tracking in local JSON database
-- **Detailed Logging** — Vietnamese-friendly logs with emoji indicators
-
----
-
-## 📋 Prerequisites
-
-- **Node.js** v18+ installed
-- **Google account** that manages the business on Google Maps
-- **Google Cloud project** with Sheets API enabled
-- **Google Sheet** with reply templates
+- **Lưu Session vĩnh viễn** — Chỉ cần đăng nhập một lần, sử dụng mãi mãi do lưu cấu hình trình duyệt.
+- **Tích hợp Google Sheet** — Trả lời bằng các câu ngẫu nhiên được lấy từ Google Sheet.
+- **Nhiều Địa Điểm** — Có thể cấu hình theo dõi cùng lúc nhiều cơ sở kinh doanh.
+- **Hành Vi Giống Người (Human-Like)** — Delay ngẫu nhiên, mô phỏng gõ phím, tránh bị bot detect.
+- **Chống Trùng Lặp** — Dữ liệu JSON tracking cục bộ chống trả lời 2 lần 1 review.
+- **Log Tiếng Việt** — Chạy terminal hiện logs hoàn toàn bằng tiếng Việt thân thiện.
 
 ---
 
-## 🚀 Setup Instructions
+## 📋 Yêu Cầu Cài Đặt
 
-### Step 1: Install Dependencies
+- **Node.js** v18+ 
+- **Tài khoản Google** có quyền quản lý Doanh nghiệp trên Google Maps.
+- **Google Sheet** chứa các mẫu câu trả lời.
 
+---
+
+## 🚀 Hướng Dẫn Cài Đặt và Cấu Hình (MỚI)
+
+### Bước 1: Tải Thư Viện (Dành cho Lập Trình Viên/Cài đặt lần đầu)
+
+Mở terminal tại thư mục tool và chạy 2 lệnh sau:
 ```bash
-cd project-folder
 npm install
 npx playwright install chromium
 ```
 
-### Step 2: Create Google Cloud Service Account
+### Bước 2: Chuẩn Bị Google Sheet (GIAO DIỆN DATA)
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or use existing)
-3. Enable **Google Sheets API**:
-   - Go to **APIs & Services > Library**
-   - Search for "Google Sheets API"
-   - Click **Enable**
-4. Create Service Account:
-   - Go to **APIs & Services > Credentials**
-   - Click **Create Credentials > Service Account**
-   - Give it a name (e.g., "review-bot")
-   - Click **Create and Continue** (skip optional steps)
-   - Click **Done**
-5. Create Key:
-   - Click on the service account you just created
-   - Go to **Keys** tab
-   - Click **Add Key > Create New Key > JSON**
-   - Download the JSON file
-6. **Rename** the downloaded file to `service-account.json`
-7. **Place** it in the project root directory
+*(Tool hiện đã được tích hợp sẵn Service Account ngầm bên trong cấu hình chữ base64, vì thế bạn KHÔNG cần tự tạo Service Account trên Google Cloud như bản cũ).*
 
-### Step 3: Prepare Google Sheet
+1. Tạo một Google Sheet mới trên Drive của bạn.
+2. Tạo một tab (trang tính) mang tên chính xác cục bộ là: **`Replies`**
+3. Trong tab `Replies`:
+   - Dòng 1: Tiêu đề cột (Ví dụ: "Nội dung trả lời") — bot sẽ bỏ qua dòng này.
+   - Từ dòng 2 trở đi: Điền các mẫu câu trả lời theo mong muốn vào **Cột A**. Bạn nên điền 30-100 câu khác nhau để bot xào (random) cho tự nhiên.
+4. Bấm nút **Chia sẻ** (Share) Google Sheet cho Email sau (chỉ cần cấp quyền Viewer / Người Xem):
+   `eldriesite@checkrv1212.iam.gserviceaccount.com`
+5. Lấy **Sheet ID** từ đường link URL Google Sheet.
+   Ví dụ link của bạn: `https://docs.google.com/spreadsheets/d/1KDO1FPP9v-8n3iGfDIIUP9vSAyjGpWqRprVpY2CgV7k/edit` 
+   -> Sheet ID của bạn là cái đoạn `1KDO1FPP...` ở giữa chữ `d/` và `/edit`.
 
-1. Create a new Google Sheet
-2. Create a tab named **`Replies`**
-3. In the `Replies` tab:
-   - Row 1: Header (e.g., "Reply Template") — this row is skipped
-   - Row 2 onwards: One reply template per row in **column A**
-   - Add 30–100 different replies for best randomization
-4. **Share the sheet** with the service account email:
-   - Look in `service-account.json` for `client_email`
-   - Share the sheet with that email (Viewer access is enough)
-5. **Copy the Sheet ID** from the URL:
-   ```
-   https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit
+### Bước 3: Cấu Hình Tool
+
+1. **Cập nhật ID Sheet (Trong `bot.js`)**
+   Mở file chỉnh sửa `bot.js`, tìm dòng sau và dán cái Sheet ID của mình vào:
+   ```javascript
+   const GOOGLE_SHEET_ID = 'ĐIỀN-ID-VÀO-ĐÂY';
    ```
 
-### Step 4: Configure the Bot
+2. **Cập nhật doanh nghiệp (Trong `config.json`)**
+   Mở file `config.json` và thiết lập tên và URL Business của bạn:
+   ```json
+   {
+     "locations": [
+       {
+         "name": "Tên Cơ Sở Kinh Doanh Của Bạn",
+         "url": "https://www.google.com/maps/place/Linh+Tinh..."
+       }
+     ]
+   }
+   ```
 
-#### Google Sheet ID (in `bot.js`):
-Open `bot.js` and replace:
-```javascript
-const GOOGLE_SHEET_ID = 'YOUR_GOOGLE_SHEET_ID_HERE';
-```
-with your actual Sheet ID.
+---
 
-#### Business Locations (in `config.json`):
-Edit `config.json` and update the `locations` array:
-```json
-{
-  "locations": [
-    {
-      "name": "Quán Cafe Sài Gòn",
-      "url": "https://www.google.com/maps/place/Your+Business+Name/..."
-    },
-    {
-      "name": "Chi nhánh Quận 1",
-      "url": "https://www.google.com/maps/place/Your+Branch/..."
-    }
-  ]
-}
-```
+### Bước 4: Chạy Đăng Nhập Lần Đầu Nhất
 
-### Step 5: First Run (Login)
-
+Terminal chạy:
 ```bash
 npm start
 ```
+Quá trình diễn ra:
+1. Tool mở tự động cửa sổ trình duyệt Chromium lên (Giao diện Google Maps).
+2. Hãy bấm **Login / Đăng nhập thủ công** bằng tài khoản Google quản lý Map của bạn vào duyệt trình duyệt đó.
+3. Khi bạn thấy đăng nhập thành công 100%, hãy về lại ở cửa sổ Terminal và **nhấn nhím ENTER**.
+4. Tool sẽ lưu phiên (session). Ở những lần mở sau đó tool sẽ tiếp nối, KHÔNG bắt bạn đăng nhập lại nữa!
 
-On first run:
-1. Browser opens automatically
-2. Navigate to Google Maps and **log in manually** with your business account
-3. Once logged in, go back to terminal and press **ENTER**
-4. Session is saved — subsequent runs won't require login
-
-Or use login-only mode:
-```bash
-npm run login
-```
-
-### Step 6: Test Google Sheet Connection
-
+Nếu bạn có muốn test riêng phần Google Sheet không chạy web, thử:
 ```bash
 npm run test-sheet
 ```
 
-This will display all loaded reply templates without starting the bot.
+## ⚙️ Các Cấu Hình Khác (Tùy Chọn)
+Bạn có thể tinh chỉnh thông số trong `config.json`:
+| Biến số   | Ý Nghĩa                                                        |
+|-----------|---------------------------------------------------------------|
+| `checkInterval` | Số khoảng vòng chênh lệch phút lặp đi lặp lại dò Map            |
+| `typingSpeed`   | Tốc độ đánh máy trên phím từng kí tự text (ms)                 |
+| `delayBetween*` | Khoảng nghỉ chờ cho tác động delay tự nhiên                    |
 
----
+*Lưu ý: Bạn không nên thiết đặt thông số này nhanh quá kẻo Google trừng phạt API vì nghi ngờ là Bot robot thật.* Cứ để setting như default nếu không tự tin.
 
-## ⚙️ Configuration (config.json)
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `checkInterval.min/max` | Polling interval (minutes) | 5–10 min |
-| `maxRepliesPerRun.min/max` | Max replies per cycle | 15–25 |
-| `typingSpeed.min/max` | Typing speed (ms/char) | 50–150 ms |
-| `delayBetweenActions.min/max` | Delay between UI actions | 3–10 sec |
-| `delayBetweenReplies.min/max` | Delay between replies | 10–30 sec |
-| `breakFrequency.afterReplies` | Take break after N replies | 5–8 |
-| `breakFrequency.breakDuration` | Break duration | 2–5 min |
-
----
-
-## 📁 Project Structure
-
-```
+## 📁 Cấu Trúc Tài Nguyên
+```text
 project/
-├── bot.js              # Main bot logic (Google Sheet ID hardcoded here)
-├── config.json         # Timing, limits, and location URLs
-├── db.json             # Local database (auto-managed)
-├── service-account.json # Google Cloud credentials (you provide)
-├── session/            # Browser session data (auto-created)
-├── package.json        # Dependencies
-└── README.md           # This file
+├── bot.js              # Source Code chạy Tool (Tự động kèm Service Account rồi)
+├── config.json         # Danh sách setup URL và các Delay
+├── db.json             # Lịch sử Tool lưu local (Chống lặp)
+└── session/            # (Tự gen) Profile Trình duyệt đã đăng nhập Google
 ```
-
----
-
-## 📋 Log Examples
-
-```
-[12/04/2026 11:30:00] 🚀 🚀 BOT KHỞI ĐỘNG
-[12/04/2026 11:30:01] ℹ️  Đã tải config.json thành công
-[12/04/2026 11:30:02] ✅ Đã tải 45 reply template(s) từ Google Sheet
-[12/04/2026 11:30:05] 📍 Đang quét: Quán Cafe Sài Gòn
-[12/04/2026 11:30:15] ℹ️  → Tìm thấy 3 review mới
-[12/04/2026 11:30:30] ✅ Đã reply cho review: "Quán cafe rất đẹp, đồ uống ngon..."
-[12/04/2026 11:31:00] ⏸️  Chờ 15.3s trước reply tiếp theo (human-like)...
-[12/04/2026 11:32:00] ⏸️  ⏸️  Nghỉ ngơi 3.2 phút (human-like)...
-[12/04/2026 11:35:30] ✅ Hoàn thành 1 chu kỳ. Tổng reply: 3
-[12/04/2026 11:35:30] 🔁 ✅ Nghỉ 7.5 phút trước chu kỳ tiếp theo...
-```
-
----
-
-## 🛡️ Safety Features
-
-1. **CAPTCHA Detection** — Stops immediately if CAPTCHA/block is detected
-2. **Error Limit** — Stops after 3 consecutive errors
-3. **Session Breaks** — Pauses 2–5 minutes every 5–8 replies
-4. **Reply Limit** — Max 15–25 replies per session
-5. **Random Delays** — All timing is randomized
-6. **No Proxies** — Uses your real IP (safer for Google)
-7. **Persistent Session** — No repeated logins (avoids suspicion)
-
----
-
-## ⚠️ Important Notes
-
-- **Google Sheet link is hardcoded in `bot.js`** — never exposed in config or UI
-- **Reply selection is fully random** — no star rating or sentiment analysis
-- **Each reply is different** — random selection avoids patterns
-- **Safety > Speed** — the bot intentionally operates slowly
-- Do NOT modify timing constants to be faster
-- Do NOT run multiple instances simultaneously
-
----
-
-## 🔧 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "Reply button not found" | Google Maps UI may have changed. Check browser for visual confirmation. |
-| "CAPTCHA detected" | Stop the bot, wait a few hours, then restart. |
-| "Cannot read Google Sheet" | Check service account email has access to the sheet. |
-| Session expired | Delete `session/` folder and run `npm run login` again. |
-| Bot stops after 3 errors | Check logs for specific error messages. |
