@@ -1,0 +1,126 @@
+const fs = require('fs');
+
+let content = fs.readFileSync('bot.js', 'utf8');
+
+const dictionary = [
+  ['Đã tải config.json thành công', 'Config.json loaded successfully'],
+  ['Không thể đọc config.json:', 'Cannot read config.json:'],
+  ['đã xử lý', 'processed'],
+  ['Không thể đọc db.json, tạo mới:', 'Cannot read db.json, creating new:'],
+  ['Không thể lưu db.json:', 'Cannot save db.json:'],
+  ['Đang tải reply templates...', 'Loading reply templates...'],
+  ['Chưa cấu hình GOOGLE_SHEET_ID trong bot.js!', 'GOOGLE_SHEET_ID not configured in bot.js!'],
+  ['Mở bot.js và thay ', 'Open bot.js and replace '],
+  ['Không tìm thấy file service-account.json!', 'service-account.json file not found!'],
+  ['Hãy tạo Google Cloud service account', 'Please create a Google Cloud service account'],
+  ['Xem README.md để biết hướng dẫn chi tiết.', 'See README.md for detailed instructions.'],
+  ['Lỗi xác thực', 'Authentication error'],
+  ['Đã tải', 'Loaded'],
+  ['từ Google Sheet', 'from Google Sheet'],
+  ['Không tải được template nào', 'Failed to load templates'],
+  ['Vui lòng kiểm tra lại Google Sheet.', 'Please check Google Sheet again.'],
+  ['Lỗi không xác định khi tải template:', 'Unknown error loading templates:'],
+  ['Không click được vào body', 'Cannot click on body'],
+  ['Có vẻ bị block', 'Seems blocked'],
+  ['Đang tìm element', 'Looking for element'],
+  ['Gặp lỗi proxy', 'Proxy error encountered'],
+  ['Điều hướng URL thất bại', 'URL navigation failed'],
+  ['Vượt quá thời gian chờ', 'Timeout exceeded'],
+  ['Khởi tạo browser', 'Initializing browser'],
+  ['Đang kết nối', 'Connecting'],
+  ['Đã click tab Reviews', 'Clicked Reviews tab'],
+  ['Không tìm thấy tab Reviews', 'Cannot find Reviews tab'],
+  ['Sắp xếp theo mới nhất...', 'Sorting by newest...'],
+  ['Đã sắp xếp theo Mới nhất', 'Sorted by Newest'],
+  ['Không thể sort reviews', 'Cannot sort reviews'],
+  ['Scroll để tải thêm reviews', 'Scrolling to load more reviews'],
+  ['Không tìm thấy scroll container', 'Scroll container not found'],
+  ['Đang trích xuất reviews...', 'Extracting reviews...'],
+  ['Lỗi trích xuất reviews:', 'Error extracting reviews:'],
+  ['Tìm nút Reply cho review', 'Finding Reply button for review'],
+  ['Đã click nút Reply', 'Clicked Reply button'],
+  ['Lỗi click Reply button:', 'Error clicking Reply button:'],
+  ['Đang nhập reply...', 'Entering reply text...'],
+  ['Tìm thấy ô nhập reply trong iframe', 'Found reply textarea in iframe'],
+  ['Tìm thấy ô nhập reply trên trang chính', 'Found reply textarea on main page'],
+  ['Không tìm thấy ô nhập liệu với selector chuẩn, tiếp tục fallback...', 'Standard textarea not found, continuing fallback...'],
+  ['Tìm thấy ô nhập reply qua fallback', 'Found reply textarea via fallback'],
+  ['Đã nhập xong reply text', 'Finished typing reply text'],
+  ['Lỗi: Không tìm thấy ô nhập text', 'Error: Text input field not found'],
+  ['Lỗi nhập reply:', 'Error typing reply:'],
+  ['Tìm nút Reply/Post...', 'Looking for Reply/Post button...'],
+  ['Đã force click nút Reply thành công', 'Force clicked Reply button successfully'],
+  ['Không tìm thấy XPath tĩnh, chuyển sang quét linh động...', 'Static XPath not found, switching to dynamic scan...'],
+  ['Đã click nút', 'Clicked button'],
+  ['trong frame', 'in frame'],
+  ['Đã click nút Post (aria fallback) trong frame', 'Clicked Post button (aria fallback) in frame'],
+  ['Đã click nút Reply/Post (evaluate fallback)', 'Clicked Reply/Post button (evaluate fallback)'],
+  ['Lỗi click nút Post:', 'Error clicking Post button:'],
+  ['Bắt đầu xử lý:', 'Starting to process:'],
+  ['Không có review mới tại', 'No new reviews at'],
+  ['Tìm thấy', 'Found'],
+  ['review mới tại', 'new reviews at'],
+  ['Không mở được popup Reply đầu tiên', 'Cannot open the first Reply popup'],
+  ['Đã mở Modal Reply. Bắt đầu chuỗi lặp...', 'Opened Reply Modal. Starting sequence loop...'],
+  ['Đã gặp', 'Encountered'],
+  ['lỗi liên tiếp — dừng bot!', 'consecutive errors — stopping bot!'],
+  ['dừng ngay!', 'stopping immediately!'],
+  ['Tiếp tục chuỗi - Template:', 'Continuing sequence - Template:'],
+  ['Không thể nhập text — Chắc hẳn đã hết Review chưa trả lời', 'Cannot input text — Probably no more unreplied reviews'],
+  ['Không thể nhập content. Đang kiểm tra xem có phải đã reply hết (All caught up) không...', 'Cannot input content. Checking if all caught up...'],
+  ['Đã hiện thông báo: "All caught up" / Hết bài chưa trả lời!', 'Popup showed: "All caught up" / No more unreplied reviews!'],
+  ['Chờ 3 phút để quét đợt mới...', 'Waiting 3 minutes before next scan...'],
+  ['Không tìm thấy ô nhập content và cũng không thấy thông báo All caught up.', 'Cannot find input field and no All caught up message.'],
+  ['Tạm thoát vòng lặp để retry.', 'Breaking loop to retry.'],
+  ['Đã điền content xong, đợi 1 giây trước khi bấm X1...', 'Content filled, waiting 1 second before clicking X1...'],
+  ['Không thể ấn duyệt (nút Reply/Post x1). Tăng lỗi và break.', 'Cannot click Submit (Reply/Post x1). Increasing error count and breaking.'],
+  ['Đã reply liên hoàn thành công!', 'Chained reply successful!'],
+  ['đợt này', 'this batch'],
+  ['Đợi 1 giây sau khi bấm X1...', 'Waiting 1s after pressing X1...'],
+  ['Không tìm thấy nút Next/Close (X2). Có thể popup tự thoát...', 'Cannot find Next/Close button (X2). Popup may have closed...'],
+  ['Đã bấm X2 — ⏳ Chờ 5 giây để sang preview nội dung review mới...', 'Clicked X2 — ⏳ Waiting 5s to preview next review...'],
+  ['Đã reply tổng cộng', 'Total replies:'],
+  ['tại', 'at'],
+  ['phiên Modal', 'Modal session'],
+  ['BẮT ĐẦU CHU KỲ QUÉT MỚI', 'STARTING NEW SCAN CYCLE'],
+  ['Quá nhiều lỗi — dừng chu kỳ!', 'Too many errors — stopping cycle!'],
+  ['Chờ', 'Waiting'],
+  ['trước khi quét location tiếp theo...', 'before scanning next location...'],
+  ['Hoàn thành 1 chu kỳ. Tổng reply:', 'Completed 1 cycle. Total replies:'],
+  ['Không tìm thấy file maps.txt!', 'maps.txt file not found!'],
+  ['Không có đường link nào hợp lệ trong maps.txt, đang sử dụng trong config.json...', 'No valid links in maps.txt, fallback to config.json...'],
+  ['Không có Map nào để quét! (Vui lòng điền link Google Maps vào maps.txt)', 'No Map to scan! (Please add Google Maps links to maps.txt)'],
+  ['Lựa chọn không hợp lệ! Mặc định sẽ chạy tất cả.', 'Invalid choice! Defaulting to run all.'],
+  ['Đã khóa mục tiêu vào 1 Map:', 'Locked target to 1 Map:'],
+  ['Đã chọn chạy TOÀN BỘ', 'Selected to run ALL'],
+  ['Maps theo tuần tự!', 'Maps sequentially!'],
+  ['Khởi động động cơ...', 'Starting engine...'],
+  ['Bot đã dừng.', 'Bot stopped.'],
+  ['Nghỉ', 'Break for'],
+  ['phút trước chu kỳ tiếp theo...', 'minutes before next cycle...'],
+  ['Làm mới reply templates từ Google Sheet...', 'Refreshing reply templates from Google Sheet...'],
+  ['Lỗi trong chu kỳ lên lịch:', 'Error in scheduled cycle:'],
+  ['Nhận tín hiệu dừng, đang dọn dẹp...', 'Stop signal received, cleaning up...'],
+  ['Trình duyệt đã đóng an toàn.', 'Browser closed safely.'],
+  ['Database loaded:', 'Database loaded:'],
+  ['Lỗi cuộn/chờ panel reviews:', 'Error scrolling/waiting reviews panel:'],
+  ['Có thể review đã bị xoá hoặc ẩn', 'Review might be deleted or hidden']
+];
+
+for (const [vi, en] of dictionary) {
+  content = content.split(vi).join(en);
+}
+
+// Translate CLI Menu
+content = content.replace('🤖 WELCOM BOT AUTO-REPLY REVIEW', '🤖 WELCOME BOT AUTO-REPLY REVIEW');
+content = content.replace('👉 enter the number and press enter:', '👉 enter the number and press enter:');
+content = content.replace('Start all map', 'Start all maps');
+
+// Numbering maps in loadMapsFromFile
+content = content.replace(
+  "let mapCount = 1;\n    for(const line of lines) {\n      const txt = line.trim().replace(/^[\uFEFF]/, ''); // Xóa ký tự BOM ẩn\n      if (!txt || txt.startsWith('#')) continue;\n      \n      // Tìm xem có tên Map không, ví dụ: \"Map 1|https://...\"\n      let name = `Map Auto ${mapCount}`;\n      let url = txt;\n\n      if (txt.includes('|')) {\n        const parts = txt.split('|');\n        name = parts[0].trim();\n        url = parts.slice(1).join('|').trim();\n      }\n\n      // Nếu url là HTTP hợp lệ\n      if (url.startsWith('http')) {\n        maps.push({ name, url });",
+  "let mapCount = 1;\n    for(const line of lines) {\n      const txt = line.trim().replace(/^[\\uFEFF]/, '');\n      if (!txt || txt.startsWith('#')) continue;\n      \n      let name = `Map Auto ${mapCount}`;\n      let url = txt;\n\n      if (txt.includes('|')) {\n        const parts = txt.split('|');\n        name = parts[0].trim();\n        url = parts.slice(1).join('|').trim();\n      }\n\n      // Force add index numbering to the name\n      name = `[${mapCount}] ${name.replace(/^\[\\d+\\]\\s*/, '')}`;\n\n      if (url.startsWith('http')) {\n        maps.push({ name, url });"
+);
+
+fs.writeFileSync('bot.js', content, 'utf8');
+console.log('Translated successfully!');

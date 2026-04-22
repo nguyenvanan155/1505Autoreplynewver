@@ -1,0 +1,44 @@
+{
+  "checkInterval": {
+    "min": 5,
+    "max": 10,
+    "unit": "minutes"
+  },
+  "maxRepliesPerRun": {
+    "min": 15,
+    "max": 25
+  },
+  "typingSpeed": {
+    "min": 50,
+    "max": 150,
+    "unit": "ms_per_char"
+  },
+  "delayBetweenActions": {
+    "min": 3000,
+    "max": 10000,
+    "unit": "ms"
+  },
+  "delayBetweenReplies": {
+    "min": 10000,
+    "max": 30000,
+    "unit": "ms"
+  },
+  "breakFrequency": {
+    "afterReplies": {
+      "min": 5,
+      "max": 8
+    },
+    "breakDuration": {
+      "min": 120000,
+      "max": 300000,
+      "unit": "ms"
+    }
+  },
+  "locations": [
+    {
+      "name": "My Business Location 1",
+      "url": "https://www.google.com/maps/place/Psychic+Medium+readings+%7C+Relationship+Problem+Solutions+%7C+Blockage+and+Bad+luck+Removal+Astrologer/@26.5971214,-81.8812561,787m/data=!3m1!1e3!4m16!1m9!3m8!1s0x88db41acc4bbf64f:0x80fd5c1069be12f8!2sPsychic+Medium+readings+%7C+Relationship+Problem+Solutions+%7C+Blockage+and+Bad+luck+Removal+Astrologer!8m2!3d26.5971214!4d-81.8786812!9m1!1b1!16s%2Fg%2F11mm8qppw_!3m5!1s0x88db41acc4bbf64f:0x80fd5c1069be12f8!8m2!3d26.5971214!4d-81.8786812!16s%2Fg%2F11mm8qppw_?authuser=5&entry=ttu&g_ep=EgoyMDI2MDQwOC4wIKXMDSoASAFQAw%3D%3D"
+    }
+  
+  ]
+}

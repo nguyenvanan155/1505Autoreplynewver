@@ -1,0 +1,19 @@
+{
+  "name": "google-maps-review-bot",
+  "version": "1.0.0",
+  "description": "Production-grade Google Maps review auto-reply bot with human-like behavior",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "login": "node bot.js --login",
+    "test-sheet": "node bot.js --test-sheet"
+  },
+  "dependencies": {
+    "google-spreadsheet": "^4.1.4",
+    "google-auth-library": "^9.14.1",
+    "playwright": "^1.49.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
