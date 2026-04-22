@@ -30,6 +30,7 @@ const GOOGLE_SHEET_ID = '1KDO1FPP9v-8n3iGfDIIUP9vSAyjGpWqRprVpY2CgV7k';
 const SHEET_TAB_NAME = 'Replies';
 const REQUIRED_REPLY_BUTTON_XPATH = '//*[@id="AH1dze"]/div/div/main/div/div/c-wiz/div/div/div/div/div/div[2]/c-wiz/div/div/div/div/div';
 const REQUIRED_SUBMIT_BUTTON_XPATH = '//*[@id="AH1dze"]/div/div/main/div/div/c-wiz/div/div/div/div/div/div[2]/c-wiz/div/div/div/div/div[3]/div/button[1]';
+const REQUIRED_STEP_DELAY_MS = 1000;
 
 // ============================================================
 //  📁 FILE PATHS
@@ -606,12 +607,12 @@ class ReviewBot {
       try {
         const element = await this.page.$(selector);
         if (element && await element.isVisible()) {
-           await element.click({ force: true });
-           Logger.info('Clicked "Read reviews"');
-           return;
-         }
-       } catch { /* Try next selector */ }
-     }
+          await element.click();
+          Logger.info('Clicked "Read reviews"');
+          return;
+        }
+      } catch { /* Try next selector */ }
+    }
 
     // Fallback by scanning visible buttons text
     try {
@@ -650,7 +651,7 @@ class ReviewBot {
       try {
         const element = await this.page.$(selector);
         if (element && await element.isVisible()) {
-          await element.click({ force: true });
+          await element.click();
           Logger.info('Clicked "Unreplied" tab');
           return;
         }
@@ -1270,12 +1271,12 @@ class ReviewBot {
 
         const replyOpened = await this.clickRequiredXPath(REQUIRED_REPLY_BUTTON_XPATH, 'X1');
         if (!replyOpened) {
-          Logger.warn('Cannot click mandatory XPath X1. Stopping this location.');
+          Logger.warn('Cannot open reply form using required XPath X1. Stopping this location.');
           break;
         }
 
-        // Step B: exact 1 second delay
-        await sleep(1000);
+        // Step 4B: exact 1 second delay
+        await sleep(REQUIRED_STEP_DELAY_MS);
 
         const replyText = pickRandomReply(this.replyTemplates);
         const typed = await this.typeReplyForSearchFlow(replyText);
@@ -1284,12 +1285,12 @@ class ReviewBot {
           break;
         }
 
-        // Step D: exact 1 second delay
-        await sleep(1000);
+        // Step 4D: exact 1 second delay
+        await sleep(REQUIRED_STEP_DELAY_MS);
 
         const posted = await this.clickRequiredXPath(REQUIRED_SUBMIT_BUTTON_XPATH, 'X2');
         if (!posted) {
-          Logger.warn('Cannot click mandatory XPath X2. Stopping this location.');
+          Logger.warn('Cannot submit reply using required XPath X2. Stopping this location.');
           break;
         }
 
@@ -1297,10 +1298,10 @@ class ReviewBot {
         this.repliesThisSession++;
         this.repliesSinceBreak++;
         this.errorCount = 0;
-        this.db.addReview(`search_flow_${Date.now()}_${totalRepliedCountForLocation}`, 'Replied on Google Search', true);
+        this.db.addReview(`search_flow_${crypto.randomUUID()}_${totalRepliedCountForLocation}`, 'Replied on Google Search', true);
 
         // Step 5: scan stop trigger after each submit
-        await sleep(1000);
+        await sleep(REQUIRED_STEP_DELAY_MS);
         if (await this.isRepliedToNewReviewsVisible()) {
           Logger.success('Detected "You\'ve replied to new reviews" after submit — breaking loop.');
           stopTriggered = true;
@@ -1320,12 +1321,16 @@ class ReviewBot {
     return totalRepliedCountForLocation;
   }
 
+  /**
+   * Click a required XPath element, scanning current page and all frames.
+   * Returns true when click succeeds, false otherwise.
+   */
   async clickRequiredXPath(xpath, label) {
     for (const frame of [this.page, ...this.page.frames()]) {
       try {
         const locator = frame.locator(`xpath=${xpath}`);
         if (await locator.count() > 0 && await locator.first().isVisible()) {
-          await locator.first().click({ force: true });
+          await locator.first().click();
           Logger.info(`Clicked required ${label} XPath`);
           return true;
         }
@@ -1334,6 +1339,10 @@ class ReviewBot {
     return false;
   }
 
+  /**
+   * Fill the reply input for Google Search review popup.
+   * Supports textarea and contenteditable fields across page/frames.
+   */
   async typeReplyForSearchFlow(replyText) {
     const inputSelectors = [
       'textarea',
@@ -1348,11 +1357,18 @@ class ReviewBot {
       for (const selector of inputSelectors) {
         try {
           const input = frame.locator(selector).first();
-          if (await input.count() > 0 && await input.isVisible()) {
-            await input.click({ force: true });
-            await this.page.keyboard.press('ControlOrMeta+A');
-            await this.page.keyboard.press('Backspace');
-            await this.page.keyboard.type(replyText);
+          if (await input.isVisible()) {
+            const element = input;
+            const tagName = await element.evaluate(el => el.tagName.toLowerCase());
+            await element.click();
+            if (tagName === 'textarea' || tagName === 'input') {
+              await element.fill(replyText);
+            } else {
+              await element.evaluate((el, text) => {
+                el.textContent = text;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+              }, replyText);
+            }
             return true;
           }
         } catch { /* Next selector */ }
@@ -1362,11 +1378,20 @@ class ReviewBot {
     return false;
   }
 
+  /**
+   * Check stop trigger text after submission.
+   * Returns true when "You've replied to new reviews" (or VN equivalent) is visible.
+   */
   async isRepliedToNewReviewsVisible() {
     for (const frame of [this.page, ...this.page.frames()]) {
       try {
-        const locator = frame.locator("text=You've replied to new reviews");
-        if (await locator.count() > 0 && await locator.first().isVisible()) {
+        const matched = await frame.evaluate(() => {
+          const bodyText = (document.body?.innerText || '').toLowerCase();
+          return bodyText.includes("you've replied to new reviews")
+            || bodyText.includes('you have replied to new reviews')
+            || bodyText.includes('bạn đã trả lời các bài đánh giá mới');
+        });
+        if (matched) {
           return true;
         }
       } catch { /* Next frame */ }
@@ -1374,17 +1399,21 @@ class ReviewBot {
     return false;
   }
 
+  /**
+   * Close current tab and keep a valid active tab reference for next actions.
+   */
   async closeCurrentTab() {
     try {
       if (!this.page || this.page.isClosed()) return;
 
       const pageToClose = this.page;
       const currentPages = this.context ? this.context.pages() : [];
+      const otherOpenPage = currentPages.find(p => p !== pageToClose && !p.isClosed());
 
-      if (currentPages.length <= 1 && this.context) {
+      if (otherOpenPage) {
+        this.page = otherOpenPage;
+      } else if (this.context) {
         this.page = await this.context.newPage();
-      } else {
-        this.page = currentPages.find(p => p !== pageToClose && !p.isClosed()) || this.page;
       }
 
       await pageToClose.close();
