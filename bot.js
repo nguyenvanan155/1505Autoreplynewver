@@ -28,6 +28,9 @@ const readline = require('readline');
 //   https://docs.google.com/spreadsheets/d/1KDO1FPP9v-8n3iGfDIIUP9vSAyjGpWqRprVpY2CgV7k/edit?usp=sharing
 const GOOGLE_SHEET_ID = '1KDO1FPP9v-8n3iGfDIIUP9vSAyjGpWqRprVpY2CgV7k';
 const SHEET_TAB_NAME = 'Replies';
+const REQUIRED_REPLY_BUTTON_XPATH = '//*[@id="AH1dze"]/div/div/main/div/div/c-wiz/div/div/div/div/div/div[2]/c-wiz/div/div/div/div/div';
+const REQUIRED_SUBMIT_BUTTON_XPATH = '//*[@id="AH1dze"]/div/div/main/div/div/c-wiz/div/div/div/div/div/div[2]/c-wiz/div/div/div/div/div[3]/div/button[1]';
+const REQUIRED_STEP_DELAY_MS = 1000;
 
 // ============================================================
 //  📁 FILE PATHS
@@ -522,13 +525,13 @@ class ReviewBot {
     Logger.warn('='.repeat(60));
     Logger.warn('🔐 FIRST RUN — MANUAL LOGIN REQUIRED');
     Logger.warn('='.repeat(60));
-    Logger.info('1. Browser will open Google Maps');
+    Logger.info('1. Browser will open Google Search');
     Logger.info('2. Log in to your Google Business account');
     Logger.info('3. After logging in, press ENTER in the terminal');
     Logger.warn('='.repeat(60));
 
-    // Navigate to Google Maps
-    await this.page.goto('https://www.google.com/maps', {
+    // Navigate to Google Search
+    await this.page.goto('https://www.google.com', {
       waitUntil: 'networkidle',
       timeout: 60000,
     });
@@ -560,133 +563,44 @@ class ReviewBot {
     Logger.info(`URL: ${location.url}`);
 
     try {
-      // Navigate to business page
+      // Navigate directly to business management URL on Google Search
       await this.page.goto(location.url, {
         waitUntil: 'domcontentloaded',
         timeout: 45000,
       });
 
-      // Wait for page to settle
-      await randomSleep(3000, 6000);
+      await sleep(2000);
 
-      // Check for CAPTCHA
       if (await detectCaptchaOrBlock(this.page)) {
         throw new Error('CAPTCHA/block detected');
       }
 
-      // Random human action before interacting
-      await HumanSimulator.randomAction(this.page);
-
-      // Click on reviews tab to open reviews section
+      // Step 2: Open reviews popup
       await this.clickReviewsTab();
+      await sleep(1500);
 
-      // Wait for reviews to load
-      await randomSleep(3000, 5000);
+      // Step 3: Switch to unreplied tab
+      await this.clickUnrepliedTab();
+      await sleep(1500);
 
-      // Sort by newest
-      await this.sortByNewest();
-
-      // Wait after sorting
-      await randomSleep(2000, 4000);
-
-      // === SCROLL + CHECK: Reply immediately when unreplied reviews found ===
-      // Check for unreplied reviews BEFORE scrolling (some may already be visible)
-      {
-        const reviews = await this.extractReviews();
-        const newReviews = reviews.filter(r => !this.db.isProcessed(r.key));
-        if (newReviews.length > 0) {
-          Logger.success(`⚡ Found ${newReviews.length} unreplied review(s) immediately (no scroll needed) — replying now!`);
-          return newReviews;
-        }
-      }
-
-      // Find scroll container
-      let container = await this.page.$('div.m6QErb.DxyBCb.kA9KIf.dS8AEf');
-      if (!container) {
-        container = await this.page.$('div[role="main"] div.m6QErb');
-      }
-
-      if (!container) {
-        Logger.warn('Scroll container not found');
-        return [];
-      }
-
-      // Scroll incrementally and check for unreplied reviews every 2 scrolls
-      let previousHeight = 0;
-      let stableCount = 0;
-      const stableThreshold = 3;
-      let scrollsDone = 0;
-      const maxScrolls = 50;
-      const checkInterval = 2; // Check for unreplied reviews every N scrolls
-
-      Logger.info('Scrolling and checking for unreplied reviews...');
-
-      while (scrollsDone < maxScrolls) {
-        // Scroll down
-        await container.evaluate(el => el.scrollTop = el.scrollHeight);
-        scrollsDone++;
-        await randomSleep(1500, 3000);
-
-        // Check if we've reached the bottom
-        const newHeight = await container.evaluate(el => el.scrollHeight);
-        if (newHeight === previousHeight) {
-          stableCount++;
-          if (stableCount >= stableThreshold) {
-            Logger.info(`Reached bottom after ${scrollsDone} scrolls`);
-            break;
-          }
-        } else {
-          stableCount = 0;
-        }
-        previousHeight = newHeight;
-
-        // Every N scrolls, check for unreplied reviews
-        if (scrollsDone % checkInterval === 0) {
-          const reviews = await this.extractReviews();
-          const newReviews = reviews.filter(r => !this.db.isProcessed(r.key));
-          if (newReviews.length > 0) {
-            Logger.success(`⚡ Found ${newReviews.length} unreplied review(s) after ${scrollsDone} scrolls — replying now!`);
-            return newReviews;
-          }
-          Logger.info(`  ... ${scrollsDone} scrolls done, no unreplied yet, scrolling more...`);
-        }
-
-        // Occasional human-like actions
-        if (Math.random() < 0.25) {
-          await HumanSimulator.randomMouseMove(this.page);
-        }
-      }
-
-      // Final check after scrolling all the way
-      const reviews = await this.extractReviews();
-      const newReviews = reviews.filter(r => !this.db.isProcessed(r.key));
-      Logger.info(`→ Scroll complete. Found ${reviews.length} review(s) total, ${newReviews.length} unreplied`);
-      return newReviews;
+      return true;
 
     } catch (err) {
       Logger.error(`Error scanning ${location.name}: ${err.message}`);
       this.errorCount++;
-      return [];
+      return false;
     }
   }
 
-  /** Click on the Reviews tab in the business listing */
+  /** Click "Read reviews" on Google Search business manager */
   async clickReviewsTab() {
-    Logger.info('Looking for Reviews tab...');
+    Logger.info('Looking for "Read reviews" button...');
 
-    // Multiple selector strategies for the reviews tab
     const tabSelectors = [
-      // Text-based (multi-language)
-      'button:has-text("Reviews")',
-      'button:has-text("Review")',
-      'button:has-text("reviews")',
-      // Aria-label based
-      '[aria-label*="Review"]',
-      '[aria-label*="review"]',
-      '[aria-label*="Review"]',
-      // Tab role
-      '[role="tab"]:has-text("Review")',
-      '[role="tab"]:has-text("Review")',
+      'button:has-text("Read reviews")',
+      '[role="button"]:has-text("Read reviews")',
+      'button[aria-label*="Read reviews"]',
+      '[role="button"][aria-label*="Read reviews"]',
     ];
 
     for (const selector of tabSelectors) {
@@ -694,19 +608,19 @@ class ReviewBot {
         const element = await this.page.$(selector);
         if (element && await element.isVisible()) {
           await element.click();
-          Logger.info('Clicked Reviews tab');
+          Logger.info('Clicked "Read reviews"');
           return;
         }
       } catch { /* Try next selector */ }
     }
 
-    // Fallback: try to find reviews tab by evaluating the page
+    // Fallback by scanning visible buttons text
     try {
       const clicked = await this.page.evaluate(() => {
         const buttons = document.querySelectorAll('button, [role="tab"]');
         for (const btn of buttons) {
           const text = (btn.textContent || '').toLowerCase();
-          if (text.includes('review') || text.includes('review')) {
+          if (text.includes('read reviews')) {
             btn.click();
             return true;
           }
@@ -714,12 +628,51 @@ class ReviewBot {
         return false;
       });
       if (clicked) {
-        Logger.info('Clicked Reviews tab (fallback)');
+        Logger.info('Clicked "Read reviews" (fallback)');
         return;
       }
     } catch { /* Ignore */ }
 
-    Logger.warn('Cannot find Reviews tab — might already be on reviews page');
+    throw new Error('Cannot find "Read reviews" button');
+  }
+
+  /** Click "Unreplied" tab on reviews popup */
+  async clickUnrepliedTab() {
+    Logger.info('Switching to "Unreplied" tab...');
+
+    const selectors = [
+      'button:has-text("Unreplied")',
+      '[role="tab"]:has-text("Unreplied")',
+      '[role="button"]:has-text("Unreplied")',
+      '[aria-label*="Unreplied"]',
+    ];
+
+    for (const selector of selectors) {
+      try {
+        const element = await this.page.$(selector);
+        if (element && await element.isVisible()) {
+          await element.click();
+          Logger.info('Clicked "Unreplied" tab');
+          return;
+        }
+      } catch { /* Next selector */ }
+    }
+
+    const clicked = await this.page.evaluate(() => {
+      const elements = document.querySelectorAll('button, [role="tab"], [role="button"]');
+      for (const el of elements) {
+        const text = (el.textContent || '').toLowerCase();
+        if (text.includes('unreplied')) {
+          el.click();
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!clicked) {
+      throw new Error('Cannot find "Unreplied" tab');
+    }
   }
 
   /** Sort reviews by newest first */
@@ -1301,145 +1254,173 @@ class ReviewBot {
   async processLocation(location) {
     Logger.location(`--- Starting to process: ${location.name} ---`);
     let totalRepliedCountForLocation = 0;
+    let stopTriggered = false;
 
-    while (this.isRunning) {
-      // Navigate and extract new reviews
-      const newReviews = await this.navigateToReviews(location);
-
-      if (newReviews.length === 0) {
-        Logger.info(`No new reviews at ${location.name}`);
+    try {
+      const ready = await this.navigateToReviews(location);
+      if (!ready) {
         return totalRepliedCountForLocation;
       }
-
-      Logger.info(`→ Found ${newReviews.length} new reviews at ${location.name}`);
-      let repliedCount = 0;
-
-      const firstReview = newReviews[0];
-      await this.scrollToReview(firstReview.index);
-      await HumanSimulator.actionDelay(this.config);
-
-      const replyClicked = await this.clickReplyButton(firstReview.index);
-      if (!replyClicked) {
-        Logger.error(`Cannot open the first Reply popup! (Might be due to slow network)`);
-        return totalRepliedCountForLocation;
-      }
-
-      Logger.info(`Opened Reply Modal. Starting sequence loop...`);
-      await randomSleep(2000, 4000);
-
-      let isAllCaughtUp = false;
 
       while (this.isRunning) {
-        // Check error limit
-        if (this.errorCount >= this.maxErrors) {
-          Logger.error(`🚨 Encountered ${this.maxErrors} consecutive errors — stopping bot!`);
-          this.isRunning = false;
+        if (await this.isRepliedToNewReviewsVisible()) {
+          Logger.success('Detected "You\'ve replied to new reviews" — stopping loop.');
+          stopTriggered = true;
           break;
         }
 
-        // Check for CAPTCHA
-        if (await detectCaptchaOrBlock(this.page)) {
-          Logger.error('🚨 CAPTCHA detected — stopping immediately!');
-          this.isRunning = false;
+        const replyOpened = await this.clickRequiredXPath(REQUIRED_REPLY_BUTTON_XPATH, 'X1');
+        if (!replyOpened) {
+          Logger.warn('Cannot open reply form using required XPath X1. Stopping this location.');
           break;
         }
 
-        // Pick random reply from templates
+        // Step 4B: exact 1 second delay
+        await sleep(REQUIRED_STEP_DELAY_MS);
+
         const replyText = pickRandomReply(this.replyTemplates);
-        Logger.info(`Continuing sequence - Template: "${truncate(replyText, 80)}"`);
-
-        // Type reply - If this fails, it usually means modal closed or no more unreplied
-        const typed = await this.typeReply(replyText);
+        const typed = await this.typeReplyForSearchFlow(replyText);
         if (!typed) {
-          Logger.info('🛑 Cannot input content. Checking if all caught up...');
-
-          // --- CHECK FOR "ALL CAUGHT UP" SCREEN ---
-          for (const frame of [this.page, ...this.page.frames()]) {
-            try {
-              const textLocator = frame.locator("text='All caught up', text='Great work! There are no more reviews to reply to.', text='You are all caught up', text='Làm tốt lắm! Bạn không còn bài review nào để reply nữa.'");
-              if (await textLocator.count() > 0 && await textLocator.first().isVisible()) {
-                isAllCaughtUp = true;
-                try {
-                  // Try clicking OK button to exit
-                  const okBtn = frame.locator("button:has-text('OK')");
-                  if (await okBtn.count() > 0 && await okBtn.first().isVisible()) {
-                    await okBtn.first().click({ force: true });
-                  }
-                } catch (e) { }
-                break;
-              }
-            } catch (e) { }
-          }
-
-          if (isAllCaughtUp) {
-            Logger.success('🎉 Popup showed: "All caught up" / No more unreplied reviews! Stopping loop...');
-            // Wait 30 seconds and then break to outer loop to rescan
-            Logger.info('⏳ Waiting 30 seconds before rescanning to ensure no missed reviews...');
-            await sleep(30 * 1000);
-            break; // Exiting inner modal loop to rescan
-          } else {
-            Logger.error('❌ Cannot find input field and no All caught up message. Breaking loop to retry.');
-            break; // Break inner loop, maybe try rescan or exit
-          }
-        }
-
-        const isFirstReply = (repliedCount === 0);
-        const btnName = isFirstReply ? 'X1' : 'X3';
-        Logger.info(`⏳ Content filled, waiting 1 second before clicking ${btnName}...`);
-        await sleep(1000);
-
-        // Click Post (X1 for first, X3 for subsequent)
-        const posted = await this.clickPostButton(isFirstReply);
-        if (!posted) {
-          Logger.error(`❌ Cannot click Submit (Reply/Post ${btnName}). Increasing error count and breaking.`);
-          this.errorCount++;
+          Logger.warn('Cannot type reply content. Stopping this location.');
           break;
         }
 
-        Logger.success(`✅ Chained reply successful! (#${repliedCount + 1} this batch)`);
+        // Step 4D: exact 1 second delay
+        await sleep(REQUIRED_STEP_DELAY_MS);
 
+        const posted = await this.clickRequiredXPath(REQUIRED_SUBMIT_BUTTON_XPATH, 'X2');
+        if (!posted) {
+          Logger.warn('Cannot submit reply using required XPath X2. Stopping this location.');
+          break;
+        }
+
+        totalRepliedCountForLocation++;
         this.repliesThisSession++;
         this.repliesSinceBreak++;
-        repliedCount++;
-        totalRepliedCountForLocation++;
         this.errorCount = 0;
+        this.db.addReview(`search_flow_${crypto.randomUUID()}_${totalRepliedCountForLocation}`, 'Replied on Google Search', true);
 
-        // Save dummy index to DB to track total numbers (since we're in the modal, we don't know the exact review key).
-        this.db.addReview(`modal_chain_${Date.now()}_${repliedCount}`, "Replied in Modal", true);
-
-        Logger.info(`⏳ Waiting 7s after pressing ${btnName}...`);
-        await sleep(7000);
-
-        // Click Next (X2)
-        let nextClicked = false;
-        const nextXpath = 'xpath=//*[@id="AH1dze"]/div/div/main/div/div/c-wiz/div/div/div/div/div[2]/div/div[4]/button';
-        for (const frame of [this.page, ...this.page.frames()]) {
-          try {
-            const btnLocator = frame.locator(nextXpath);
-            if (await btnLocator.count() > 0 && await btnLocator.first().isVisible()) {
-              await btnLocator.first().click({ force: true });
-              nextClicked = true;
-              break;
-            }
-          } catch (e) { }
+        // Step 5: scan stop trigger after each submit
+        await sleep(REQUIRED_STEP_DELAY_MS);
+        if (await this.isRepliedToNewReviewsVisible()) {
+          Logger.success('Detected "You\'ve replied to new reviews" after submit — breaking loop.');
+          stopTriggered = true;
+          break;
         }
-
-        if (!nextClicked) {
-          Logger.warn('⚠️ Cannot find Next/Close button (X2). Popup may have closed...');
-        }
-
-        Logger.info('Clicked X2 — ⏳ Waiting 5s to preview next review...');
-        await sleep(5000);
       }
-
-      // If bot is stopped or max errors reached, break out completely
-      if (!this.isRunning || this.errorCount >= this.maxErrors) {
-        break;
+    } catch (err) {
+      Logger.error(`Error processing ${location.name}: ${err.message}`);
+      this.errorCount++;
+    } finally {
+      if (stopTriggered) {
+        await this.closeCurrentTab();
       }
     }
 
     Logger.success(`Total replies: ${totalRepliedCountForLocation} reviews at ${location.name}.`);
     return totalRepliedCountForLocation;
+  }
+
+  /**
+   * Click a required XPath element, scanning current page and all frames.
+   * Returns true when click succeeds, false otherwise.
+   */
+  async clickRequiredXPath(xpath, label) {
+    for (const frame of [this.page, ...this.page.frames()]) {
+      try {
+        const locator = frame.locator(`xpath=${xpath}`);
+        if (await locator.count() > 0 && await locator.first().isVisible()) {
+          await locator.first().click();
+          Logger.info(`Clicked required ${label} XPath`);
+          return true;
+        }
+      } catch { /* Next frame */ }
+    }
+    return false;
+  }
+
+  /**
+   * Fill the reply input for Google Search review popup.
+   * Supports textarea and contenteditable fields across page/frames.
+   */
+  async typeReplyForSearchFlow(replyText) {
+    const inputSelectors = [
+      'textarea',
+      'div[contenteditable="true"]',
+      '[role="textbox"][contenteditable="true"]',
+      '[aria-label*="Reply"]',
+      '[aria-label*="Trả lời"]',
+      '[aria-label*="Phản hồi"]',
+    ];
+
+    for (const frame of [this.page, ...this.page.frames()]) {
+      for (const selector of inputSelectors) {
+        try {
+          const input = frame.locator(selector).first();
+          if (await input.isVisible()) {
+            const element = input;
+            const tagName = await element.evaluate(el => el.tagName.toLowerCase());
+            await element.click();
+            if (tagName === 'textarea' || tagName === 'input') {
+              await element.fill(replyText);
+            } else {
+              await element.evaluate((el, text) => {
+                el.textContent = text;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+              }, replyText);
+            }
+            return true;
+          }
+        } catch { /* Next selector */ }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Check stop trigger text after submission.
+   * Returns true when "You've replied to new reviews" (or VN equivalent) is visible.
+   */
+  async isRepliedToNewReviewsVisible() {
+    for (const frame of [this.page, ...this.page.frames()]) {
+      try {
+        const matched = await frame.evaluate(() => {
+          const bodyText = (document.body?.innerText || '').toLowerCase();
+          return bodyText.includes("you've replied to new reviews")
+            || bodyText.includes('you have replied to new reviews')
+            || bodyText.includes('bạn đã trả lời các bài đánh giá mới');
+        });
+        if (matched) {
+          return true;
+        }
+      } catch { /* Next frame */ }
+    }
+    return false;
+  }
+
+  /**
+   * Close current tab and keep a valid active tab reference for next actions.
+   */
+  async closeCurrentTab() {
+    try {
+      if (!this.page || this.page.isClosed()) return;
+
+      const pageToClose = this.page;
+      const currentPages = this.context ? this.context.pages() : [];
+      const otherOpenPage = currentPages.find(p => p !== pageToClose && !p.isClosed());
+
+      if (otherOpenPage) {
+        this.page = otherOpenPage;
+      } else if (this.context) {
+        this.page = await this.context.newPage();
+      }
+
+      await pageToClose.close();
+      Logger.info('Closed current tab after stop trigger.');
+    } catch (err) {
+      Logger.warn(`Cannot close current tab: ${err.message}`);
+    }
   }
 
   /**
@@ -1818,4 +1799,3 @@ bot.start().catch(err => {
   Logger.error(err.stack);
   pauseAndExit(1);
 });
-
